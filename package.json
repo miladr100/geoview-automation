@@ -1,27 +1,36 @@
 {
-  "name": "geoview-automation",
-  "version": "0.1.0",
+  "name": "whatsapp-next",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "tsx src/lib/socket.ts",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "NODE_ENV=production node src/lib/socket.ts"
   },
   "dependencies": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "next": "15.4.4"
+    "@types/node": "^20.0.0",
+    "bufferutil": "4",
+    "mongoose": "^8.16.5",
+    "next": "^14.0.0",
+    "puppeteer": "^24.15.0",
+    "qrcode": "^1.5.1",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "socket.io": "^4.7.2",
+    "socket.io-client": "^4.7.2",
+    "tsx": "^4.20.3",
+    "typescript": "^5.0.0",
+    "utf-8-validate": "^5.0.10",
+    "whatsapp-web.js": "^1.22.0",
+    "ws": "^8.13.0",
+    "wwebjs-mongo": "^1.1.0"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
-    "eslint": "^9",
-    "eslint-config-next": "15.4.4",
-    "@eslint/eslintrc": "^3"
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "ts-node": "^10.9.1"
   }
 }
