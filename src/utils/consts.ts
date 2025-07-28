@@ -38,3 +38,6 @@ export const USER_MESSAGE_STATES = {
   aguardando_formulario: "aguardando_formulario",
   aguardando_opcao: "aguardando_opcao"
 }
+
+export const SESSION_ID = 'geoview';
+export const MONGO_URL = "mongodb+srv://miladr100:29051997pc@whatsjs-bot.v2qutgh.mongodb.net/";

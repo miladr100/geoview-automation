@@ -5,6 +5,7 @@ import { MongoStore } from 'wwebjs-mongo';
 import mongoose from 'mongoose';
 import { Server } from 'socket.io';
 import { handleIncomingMessage } from "@/utils/functions";
+import { SESSION_ID, MONGO_URL } from '@/utils/consts';
 
 declare global {
   var _whatsappClient: Client | undefined;
@@ -13,9 +14,6 @@ declare global {
 
 let io: Server | undefined = global._socketIO;
 let client: Client | undefined = global._whatsappClient;
-
-const MONGO_URL = "mongodb+srv://miladr100:29051997pc@whatsjs-bot.v2qutgh.mongodb.net/";
-console.log("env: ", process.env.MONGODB_URI);
 
 let lastQrCode: string | null = null;
 
@@ -43,7 +41,7 @@ export async function initWhatsApp(socketServer?: Server) {
       executablePath: require('puppeteer').executablePath()
     },
     authStrategy: new RemoteAuth({
-      clientId: 'geoview',
+      clientId: SESSION_ID,
       store: mongoStore,
       backupSyncIntervalMs: 300000
     }),

@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient, deleteClient } from "@/lib/whatsapp";
 import { deleteRemoteAuthSession } from "@/utils/functions";
+import { SESSION_ID } from '@/utils/consts';
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
 
     const store = (client as any).authStrategy?.store;
     if (store && typeof store.delete === 'function') {
-      await deleteRemoteAuthSession('geoview');
+      await deleteRemoteAuthSession(SESSION_ID);
       deleteClient();
     }
 

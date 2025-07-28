@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
-import { initWhatsApp } from '@/lib/whatsapp';
-
-const MONGO_URL = "mongodb+srv://miladr100:29051997pc@whatsjs-bot.v2qutgh.mongodb.net/";
-const SESSION_ID = 'geoview';
+import { SESSION_ID, MONGO_URL } from '@/utils/consts';
 
 export async function POST(req: NextRequest) {
   try {
