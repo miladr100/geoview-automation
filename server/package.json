@@ -1,0 +1,35 @@
+{
+  "name": "whatsapp-server",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx src/socket.ts",
+    "build": "tsc",
+    "start": "node dist/socket.js"
+  },
+  "ts-node": {
+    "esm": true
+  },
+  "dependencies": {
+    "@types/node": "^20.0.0",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "mongoose": "^8.16.5",
+    "puppeteer": "^24.15.0",
+    "qrcode": "^1.5.1",
+    "qrcode-terminal": "^0.12.0",
+    "socket.io": "^4.7.2",
+    "whatsapp-web.js": "^1.22.0",
+    "ws": "^8.13.0",
+    "wwebjs-mongo": "^1.1.0",
+    "zod": "^4.0.10"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/qrcode": "^1.5.5",
+    "@types/qrcode-terminal": "^0.12.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.3"
+  }
+}
