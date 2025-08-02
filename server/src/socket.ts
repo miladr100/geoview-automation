@@ -13,13 +13,14 @@ import disconnectRoutes from './routes/disconnect';
 import generateQrRoutes from './routes/generate-qr';
 import sendMessageRoutes from './routes/send-message';
 import sessionStatusRoutes from './routes/session-status';
+import { FRONT_URL } from '../env';
 import ping from './routes/ping';
 
 async function start() {
   await connectMongo();
 
   const app = express();
-  app.use(cors({ origin: 'http://localhost:3000' }));
+  app.use(cors({ origin: FRONT_URL }));
   app.use(bodyParser.json());
 
   app.use('/api/ping', ping);
