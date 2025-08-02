@@ -1,8 +1,0 @@
-{
-  "projects": {
-    "frontend": {
-      "source": "front-nextjs",
-      "framework": "nextjs"
-    }
-  }
-}
