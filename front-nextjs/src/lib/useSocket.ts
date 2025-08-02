@@ -8,7 +8,7 @@ export function useSocket() {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    const socket = io('http://localhost:3001'); // ou URL pública
+    const socket = io(process.env.NEXT_PUBLIC_API_BASE_URL);
     socketRef.current = socket;
 
     socket.on('connect', () => {
