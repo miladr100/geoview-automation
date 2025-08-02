@@ -1,9 +1,10 @@
 // app/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
 import io from 'socket.io-client';
+import { useEffect, useState } from 'react';
 import { WHATSAPP_STATES } from "@/utils/consts";
+import { api } from "@/utils/functions";
 import './page.css';
 
 export default function Home() {
@@ -15,12 +16,13 @@ export default function Home() {
   const [loadingQR, setLoadingQR] = useState(false);
 
   useEffect(() => {
-    const socket = io();
+    const socket = io(process.env.NEXT_PUBLIC_API_BASE_URL);
 
-    fetch('/api/session-status')
+    fetch(api('/api/session-status'))
       .then(res => res.json())
       .then(data => {
         const state = data.state;
+        console.log("Estado da sessão:", state);
 
         if (state === WHATSAPP_STATES.CONNECTED) {
           setStatus('connected');
@@ -74,14 +76,14 @@ export default function Home() {
 
     if (!isReconnecting) {
       setIsReconnecting(true);
-      const res = await fetch('/api/check-session', { method: 'POST' });
+      const res = await fetch(api('/api/check-session'), { method: 'POST' });
       const data = await res.json();
       if (data.session) {
         for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
           console.log(`🔄 Tentativa de reconexão ${attempt}/${MAX_ATTEMPTS}...`);
 
           try {
-            const res = await fetch('/api/generate-qr', { method: 'POST' });
+            const res = await fetch(api('/api/generate-qr'), { method: 'POST' });
             console.log(res)
 
             if (res.ok) {
@@ -112,7 +114,7 @@ export default function Home() {
   const handleSendTest = async () => {
     alert(`Enviando mensagem: \n${message.message}`);
     const body = JSON.stringify({ to: message.number, message: message.message })
-    const res = await fetch("/api/send-message", {
+    const res = await fetch(api("/api/send-message"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
@@ -121,7 +123,7 @@ export default function Home() {
   };
 
   const handleDisconnect = async () => {
-    const res = await fetch('/api/disconnect', { method: 'POST' });
+    const res = await fetch(api('/api/disconnect'), { method: 'POST' });
     alert(`Resposta do Servidor: \n${res.ok ? "Sucesso" : "Falhou"}`);
     if (res.ok) {
       setIsUserDisconnection(true);
@@ -132,7 +134,7 @@ export default function Home() {
   const handleGenerateQR = async () => {
     setLoadingQR(true);
     try {
-      const res = await fetch('/api/generate-qr', { method: 'POST' });
+      const res = await fetch(api('/api/generate-qr'), { method: 'POST' });
       if (!res.ok) throw new Error('Falha ao gerar QR Code.');
       setStatus('uninitialized');
     } catch (error) {

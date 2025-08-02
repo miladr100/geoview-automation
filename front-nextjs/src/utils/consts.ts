@@ -39,5 +39,5 @@ export const USER_MESSAGE_STATES = {
   aguardando_opcao: "aguardando_opcao"
 }
 
-export const SESSION_ID = 'geoview';
-export const MONGO_URL = "mongodb+srv://miladr100:29051997pc@whatsjs-bot.v2qutgh.mongodb.net/";
+export const SESSION_ID = process.env.NEXT_PUBLIC_SESSION_ID;
+export const MONGO_URL = process.env.NEXT_PUBLIC_MONGO_URL;

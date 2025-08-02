@@ -1,5 +1,4 @@
-import { ClientContactModel, IClientContact } from "@/models/ClientContact";
-import { Types } from "mongoose";
+import { ClientContactModel, IClientContact } from "../models/ClientContact";
 
 export class ClientContactRepository {
   async findContactByPhoneNumber(phone: string) {

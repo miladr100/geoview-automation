@@ -12,6 +12,14 @@
 
 # testing
 /coverage
+/server/.wwebjs_auth
+/server/.wwebjs_cache
+/server/node_modules
+/server/env.ts
+/front-nextjs/node_modules
+/front-nextjs/.next
+/front-nextjs/.env.local
+/front-nextjs/next-env.d.ts
 
 # next.js
 /.next/

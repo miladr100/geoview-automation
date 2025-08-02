@@ -1,8 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+// routes/checkSession.ts
+import express, { Request, Response } from "express";
 import mongoose from 'mongoose';
-import { SESSION_ID, MONGO_URL } from '@/utils/consts';
+import { SESSION_ID, MONGO_URL } from '../../env';
 
-export async function POST(req: NextRequest) {
+const router = express.Router();
+
+router.post("/", async (req: Request, res: Response) => {
   try {
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(MONGO_URL);
@@ -12,22 +15,24 @@ export async function POST(req: NextRequest) {
     const filesCollection = db?.collection(`whatsapp-RemoteAuth-${SESSION_ID}.files`);
     const fileCount = await filesCollection?.countDocuments();
 
-    if (fileCount === 0) {
-      return NextResponse.json({
+    if (!fileCount || fileCount === 0) {
+      return res.status(200).json({
         session: false,
         message: 'Nenhuma sessão encontrada.',
       });
     }
 
-    return NextResponse.json({
+    return res.status(200).json({
       session: true,
       message: 'Sessão encontrada.',
     });
   } catch (error) {
     console.error('Erro ao tentar reconectar:', error);
-    return NextResponse.json(
-      { reconnected: false, message: 'Erro ao tentar reconectar.' },
-      { status: 500 }
-    );
+    return res.status(500).json({
+      session: false,
+      message: 'Erro ao tentar reconectar.',
+    });
   }
-}
+});
+
+export default router;

@@ -1,10 +1,10 @@
-import mongoose from 'mongoose';
 import { Client, Message } from 'whatsapp-web.js';
-import { PROPOSAL_OPTIONS, SERVICE_FORM } from "@/utils/consts";
+import mongoose from 'mongoose';
+import { PROPOSAL_OPTIONS, SERVICE_FORM } from "./consts";
+import { userStates, userServiceMap } from "./states";
+import { PORT } from '../../env';
 
-const API_BASE_URL="http://localhost:3000"
-
-const userStates = new Map<string, string>();
+const API_BASE_URL=`http://localhost:${PORT}`
 
 export async function deleteRemoteAuthSession(clientId: string) {
   const db = mongoose.connection.db;
@@ -27,7 +27,6 @@ export async function deleteRemoteAuthSession(clientId: string) {
 
 export async function handleIncomingMessage(msg: Message, client: Client) {
   const number = msg.from;
-  let serviceOption = "";
 
   const state = userStates.get(number);
 
@@ -45,6 +44,8 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
       return;
     }
 
+    const service = userServiceMap.get(number) ?? null;
+
     // PATCH: atualiza o contato com o formulário completo
     try {
       await fetch(`${API_BASE_URL}/api/contacts`, {
@@ -54,7 +55,7 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
           { phone: number, 
             form: content, 
             status: "aguardando_tarefa", 
-            service: serviceOption
+            service,
           }
         ),
       });
@@ -63,7 +64,9 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
     }
 
     await msg.reply("✅ Obrigado pelas informações! Enviaremos sua proposta em breve.");
+    console.log("Mensagem recebida, estado atribuido: aguardando_tarefa");
     userStates.delete(number);
+    userServiceMap.delete(number);
     return;
   }
 
@@ -86,9 +89,11 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
 
     if (isOldContact) {
       userStates.set(number, 'contato_duplicado');
+      console.log("Mensagem recebida, estado atribuido: contato_duplicado");
       return;
     }
 
+    console.log("Mensagem recebida, estado atribuido: primeiro_contato");
     try {
       await fetch(`${API_BASE_URL}/api/contacts`, {
         method: 'POST',
@@ -107,6 +112,7 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
       `Olá! A GeoView agradece seu contato.\nComo podemos te ajudar hoje?\n\n${optionList}`
     );
     userStates.set(number, 'aguardando_opcao');
+    console.log("Mensagem recebida, estado atribuido: aguardando_opcao");
     return;
   }
 
@@ -116,12 +122,12 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
     const isValid = index >= 0 && index < PROPOSAL_OPTIONS.length;
 
     const selectedOption = isValid ? PROPOSAL_OPTIONS[index] : msg.body.trim();
-
     if (!isValid && !PROPOSAL_OPTIONS.includes(selectedOption)) {
       await msg.reply("Opção inválida. Por favor, escolha uma das opções enviadas anteriormente.");
-      serviceOption = selectedOption;
       return;
     }
+
+    userServiceMap.set(number, selectedOption);
 
     await msg.reply(
       `Perfeito! Entendemos que você gostaria de um serviço de *${selectedOption}*.\n\n` +
@@ -130,6 +136,7 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
     );
 
     userStates.set(number, 'aguardando_formulario');
+    console.log("Mensagem recebida, estado atribuido: aguardando_formulario");
     return;
   }
 
