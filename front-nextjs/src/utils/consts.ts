@@ -38,6 +38,3 @@ export const USER_MESSAGE_STATES = {
   aguardando_formulario: "aguardando_formulario",
   aguardando_opcao: "aguardando_opcao"
 }
-
-export const SESSION_ID = process.env.NEXT_PUBLIC_SESSION_ID;
-export const MONGO_URL = process.env.NEXT_PUBLIC_MONGO_URL;
