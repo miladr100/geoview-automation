@@ -8,8 +8,8 @@ import { api } from "@/utils/functions";
 import './page.css';
 
 const headers = {
-    "ngrok-skip-browser-warning": "true"
-  }
+  "ngrok-skip-browser-warning": "true"
+}
 
 export default function Home() {
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -20,7 +20,13 @@ export default function Home() {
   const [loadingQR, setLoadingQR] = useState(false);
 
   useEffect(() => {
-    const socket = io(process.env.NEXT_PUBLIC_API_BASE_URL);
+    const socket = io(process.env.NEXT_PUBLIC_API_BASE_URL, {
+      extraHeaders: {
+        'ngrok-skip-browser-warning': 'true'
+      },
+      transports: ['websocket']
+    });
+
 
     fetch(api('/api/session-status'), { headers })
       .then(res => res.json())
