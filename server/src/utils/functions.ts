@@ -1,10 +1,10 @@
 import { Client, Message } from 'whatsapp-web.js';
 import mongoose from 'mongoose';
-import { PROPOSAL_OPTIONS, SERVICE_FORM } from "./consts";
+import { PROPOSAL_OPTIONS, SERVICE_FORM, BOARD_CODES } from "./consts";
 import { userStates, userServiceMap } from "./states";
 import { PORT } from '../../env';
 
-const API_BASE_URL=`http://localhost:${PORT}`
+const API_BASE_URL = `http://localhost:${PORT}`
 
 export async function deleteRemoteAuthSession(clientId: string) {
   const db = mongoose.connection.db;
@@ -25,6 +25,94 @@ export async function deleteRemoteAuthSession(clientId: string) {
   }
 }
 
+async function createMondayTask(phone: string, name: string, boardId: number, groupId: string) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/create-monday-task`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        taskName: `GEOV____${name} - (${phone})`,
+        boardId,
+        groupId
+      }),
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Erro ao criar tarefa no Monday:", error);
+    return { success: false, message: "Erro ao criar tarefa no Monday." };
+  }
+}
+
+async function createMondayTaskComment(phone: string, name: string, form: string, itemId: number) {
+  const data = new Date();
+  const beautifiedDate = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+    hour12: false,
+  }).format(data);
+  const comment = `Proposta enviada por ${name} (${phone})\n\nData: ${beautifiedDate}\n\n${form}`;
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/add-monday-comment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        itemId,
+        description: comment
+      }),
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Erro ao adicionar comentário:", error);
+    return { success: false, message: "Erro ao adicionar comentário." };
+  }
+}
+
+async function handleMondayNewTask(phone: string, name: string, form: string, task: string) {
+  const boardItem = BOARD_CODES[task];
+  if (!boardItem) {
+    console.error(`Erro: quadro inválido ${task}`);
+    return;
+  }
+  const formattedPhone = phone.replace(/\D/g, '');
+  const taskResponse = await createMondayTask(formattedPhone, name, boardItem.id, boardItem.group.id);
+
+  if (taskResponse.success) {
+    console.log("Tarefa criada com sucesso no Monday.");
+    const commentResponse = await createMondayTaskComment(formattedPhone, name, form, taskResponse.itemId);
+    if (commentResponse.success) {
+      console.log("Comentário criado com sucesso no Monday.");
+    } else {
+      console.error("Erro ao adicionar comentário:", commentResponse.message);
+    }
+
+    try {
+      await fetch(`${API_BASE_URL}/api/contacts`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          {
+            phone: phone,
+            boardId: taskResponse.itemId,
+            groupId: commentResponse.updateId,
+          }
+        ),
+      });
+    } catch (err) {
+      console.error("Erro ao atualizar contato", err);
+    }
+  } else {
+    console.error("Erro ao criar tarefa:", taskResponse.message);
+  }
+}
+
 export async function handleIncomingMessage(msg: Message, client: Client) {
   const number = msg.from;
 
@@ -34,6 +122,8 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
   if (state === 'aguardando_formulario') {
     const MIN_LENGTH = 60;
     const content = msg.body.trim();
+    const contact = await msg.getContact();
+    const name = contact.pushname || contact.name || '';
 
     if (content.length < MIN_LENGTH) {
       await msg.reply(
@@ -52,9 +142,10 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(
-          { phone: number, 
-            form: content, 
-            status: "aguardando_tarefa", 
+          {
+            phone: number,
+            form: content,
+            status: "aguardando_tarefa",
             service,
           }
         ),
@@ -65,6 +156,8 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
 
     await msg.reply("✅ Obrigado pelas informações! Enviaremos sua proposta em breve.");
     console.log("Mensagem recebida, estado atribuido: aguardando_tarefa");
+
+    await handleMondayNewTask(number, name, content, service);
     userStates.delete(number);
     userServiceMap.delete(number);
     return;
@@ -140,7 +233,7 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
     return;
   }
 
-  if(state === 'contato_duplicado') {
+  if (state === 'contato_duplicado') {
     return;
   }
 }

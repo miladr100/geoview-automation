@@ -13,6 +13,8 @@ import disconnectRoutes from './routes/disconnect';
 import generateQrRoutes from './routes/generate-qr';
 import sendMessageRoutes from './routes/send-message';
 import sessionStatusRoutes from './routes/session-status';
+import createMondayTaskRoutes from './routes/create-monday-task';
+import addMondayCommentRoutes from './routes/add-monday-comment';
 import { FRONT_URL } from '../env';
 import ping from './routes/ping';
 
@@ -30,6 +32,8 @@ async function start() {
   app.use('/api/generate-qr', generateQrRoutes);
   app.use('/api/send-message', sendMessageRoutes);
   app.use('/api/session-status', sessionStatusRoutes);
+  app.use('/api/create-monday-task', createMondayTaskRoutes);
+  app.use('/api/add-monday-comment', addMondayCommentRoutes);
 
   const httpServer = createServer(app);
   const io = new Server(httpServer, {

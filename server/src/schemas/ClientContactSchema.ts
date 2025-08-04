@@ -8,6 +8,8 @@ export const ClientContactSchema = z.object({
   status: z.string(),
   service: z.string().nullable().optional(),
   form: z.string().nullable().optional(),
+  boardId: z.string().nullable().optional(),
+  groupId: z.string().nullable().optional(),
   createdAt: z.string(),
 });
 
