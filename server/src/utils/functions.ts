@@ -25,13 +25,16 @@ export async function deleteRemoteAuthSession(clientId: string) {
   }
 }
 
-async function createMondayTask(phone: string, name: string, boardId: number, groupId: string) {
+async function createMondayTask(name: string, boardId: number, groupId: string, boardCode: string) {
+  const date = new Date();
+  const year = date.getFullYear();
+  const shortYear = year.toString().slice(-2);
   try {
     const response = await fetch(`${API_BASE_URL}/api/create-monday-task`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        taskName: `GEOV____${name} - (${phone})`,
+        taskName: `GEOV0000-${shortYear}.${name}.${boardCode}`,
         boardId,
         groupId
       }),
@@ -82,7 +85,7 @@ async function handleMondayNewTask(phone: string, name: string, form: string, ta
     return;
   }
   const formattedPhone = phone.replace(/\D/g, '');
-  const taskResponse = await createMondayTask(formattedPhone, name, boardItem.id, boardItem.group.id);
+  const taskResponse = await createMondayTask(name, boardItem.id, boardItem.group.id, boardItem.code);
 
   if (taskResponse.success) {
     console.log("Tarefa criada com sucesso no Monday.");
@@ -202,7 +205,7 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
     }
 
     await client.sendMessage(msg.from,
-      `Olá! A GeoView agradece seu contato.\nComo podemos te ajudar hoje?\n\n${optionList}`
+      `Olá! A GeoView agradece seu contato.\nMeu nome é Henrique de Sá, gerente de projetos da GeoView.\n\nEscolha o serviço que deseja hoje:\n\n${optionList}`
     );
     userStates.set(number, 'aguardando_opcao');
     console.log("Mensagem recebida, estado atribuido: aguardando_opcao");

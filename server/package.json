@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "tsx src/socket.ts",
     "build": "tsc",
-    "start": "node dist/socket.js"
+    "start": "node dist/socket.js",
+    "start:cron": "tsx src/cron-cleaner.ts"
   },
   "ts-node": {
     "esm": true
@@ -16,6 +17,7 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "mongoose": "^8.16.5",
+    "node-cron": "^4.2.1",
     "puppeteer": "^24.15.0",
     "qrcode": "^1.5.1",
     "qrcode-terminal": "^0.12.0",
