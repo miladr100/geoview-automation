@@ -81,7 +81,7 @@ export default function Home() {
   }, []);
 
   async function tryReconnect() {
-    const MAX_ATTEMPTS = 6;
+    const MAX_ATTEMPTS = 7;
     const INTERVAL_MS = 10000;
 
     if (!isReconnecting) {
@@ -197,6 +197,16 @@ export default function Home() {
         <div className="qrcode-box">
           <p>Escaneie o QR Code abaixo:</p>
           <img src={qrCode} alt="QR Code" className="qrcode" />
+          <div>
+            <p>Demorando muito ou não conseguindo conectar?</p>
+            <button
+              onClick={handleGenerateQR}
+              className={loadingQR ? "button gray" : "button blue"}
+              disabled={loadingQR}
+            >
+              {loadingQR ? 'Carregando QR Code...' : 'Gerar Novo QR Code'}
+            </button>
+          </div>
         </div>
       )}
 
