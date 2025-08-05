@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { getClient, deleteClient } from '../whatsapp';
-import { deleteRemoteAuthSession } from '../../src/utils/functions';
-import { SESSION_ID } from '../../env';
+import { deleteLocalAuthSession } from '../../src/utils/functions';
+//import { SESSION_ID } from '../../env';
 
 const router = express.Router();
 
@@ -14,11 +14,15 @@ router.post('/', async (_req: Request, res: Response) => {
     }
 
     await client.destroy();
+    console.log('✅ client.destroy() executado');
 
     const store = (client as any).authStrategy?.store;
     if (store && typeof store.delete === 'function') {
-      await deleteRemoteAuthSession(SESSION_ID);
-      deleteClient();
+      //await deleteRemoteAuthSession(SESSION_ID);
+      setTimeout(() => {
+        deleteLocalAuthSession();
+        deleteClient();
+      }, 1000); // 500ms de espera
     }
 
     return res.json({ message: 'Cliente desconectado com sucesso.' });

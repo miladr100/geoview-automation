@@ -1,12 +1,12 @@
 // whatsapp.ts
 import qrcode from 'qrcode';
 import puppeteer from 'puppeteer';
-import mongoose from 'mongoose';
-import { Client, RemoteAuth } from 'whatsapp-web.js';
+//import mongoose from 'mongoose';
+import { Client, LocalAuth } from 'whatsapp-web.js';
 import qrcodeTerminal from 'qrcode-terminal';
 import { Server } from 'socket.io';
-import { MongoStore } from 'wwebjs-mongo';
-import { handleIncomingMessage } from './utils/functions';
+//import { MongoStore } from 'wwebjs-mongo';
+import { handleIncomingMessage, deleteLocalAuthSession } from './utils/functions';
 import { SESSION_ID, MONGO_URL } from '../env';
 
 declare global {
@@ -22,10 +22,11 @@ let lastQrCode: string | null = null;
 export async function initWhatsApp(socketServer?: Server) {
   if (!MONGO_URL) throw new Error("MONGO_URL não definido");
   if (!io && !socketServer) throw new Error("Socket não definido");
+  deleteLocalAuthSession();
 
   io = socketServer ?? global._socketIO ?? io;
 
-  const mongoStore = new MongoStore({ mongoose });
+  //const mongoStore = new MongoStore({ mongoose });
 
   client = client ? client : new Client({
     puppeteer: {
@@ -40,10 +41,8 @@ export async function initWhatsApp(socketServer?: Server) {
       ],
       executablePath: puppeteer.executablePath()
     },
-    authStrategy: new RemoteAuth({
+    authStrategy: new LocalAuth({
       clientId: SESSION_ID,
-      store: mongoStore,
-      backupSyncIntervalMs: 300000,
     }),
   });
 

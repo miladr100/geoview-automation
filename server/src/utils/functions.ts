@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+
 import { Client, Message } from 'whatsapp-web.js';
 import mongoose from 'mongoose';
 import { PROPOSAL_OPTIONS, SERVICE_FORM, BOARD_CODES } from "./consts";
@@ -5,6 +8,8 @@ import { userStates, userServiceMap } from "./states";
 import { PORT } from '../../env';
 
 const API_BASE_URL = `http://localhost:${PORT}`
+const SESSION_AUTH_FOLDER = '.wwebjs_auth';
+const SESSION_CASH_FOLDER = '.wwebjs_cache';
 
 export async function deleteRemoteAuthSession(clientId: string) {
   const db = mongoose.connection.db;
@@ -22,6 +27,19 @@ export async function deleteRemoteAuthSession(clientId: string) {
     console.log(`> arquivos: ${resultFiles?.deletedCount}, chunks: ${resultChunks?.deletedCount}`);
   } catch (err) {
     console.error('Erro ao apagar sessão manualmente:', err);
+  }
+}
+
+export function deleteLocalAuthSession() {
+  const sessionPath = path.join(process.cwd(), SESSION_AUTH_FOLDER);
+  const sessionCashPath = path.join(process.cwd(), SESSION_CASH_FOLDER);
+  if (fs.existsSync(sessionPath)) {
+    fs.rmSync(sessionPath, { recursive: true, force: true });
+    console.log(`🗑 Sessão auth local antiga removida`);
+  }
+  if (fs.existsSync(sessionCashPath)) {
+    fs.rmSync(sessionCashPath, { recursive: true, force: true });
+    console.log(`🗑 Sessão cash local antiga removida`);
   }
 }
 
@@ -239,4 +257,19 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
   if (state === 'contato_duplicado') {
     return;
   }
+}
+
+export function generateSessionId(baseId: string) {
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+
+  const timestamp = `${year}${month}${day}-${hours}${minutes}${seconds}`;
+
+  return `${baseId}-${timestamp}`;
 }

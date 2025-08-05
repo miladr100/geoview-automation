@@ -9,7 +9,7 @@ export async function connectMongo() {
 
   await mongoose.connect(MONGO_URL);
   console.log('✅ Conectado ao MongoDB');
-  deleteRemoteAuthSession(SESSION_ID)
-    .then(() => console.log('✅ Sessão remota deletada com sucesso'))
-    .catch(err => console.error('❌ Erro ao deletar sessão remota:', err));
+  //deleteRemoteAuthSession(SESSION_ID)
+  //  .then(() => console.log('✅ Sessão remota deletada com sucesso'))
+  //  .catch(err => console.error('❌ Erro ao deletar sessão remota:', err));
 }
