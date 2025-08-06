@@ -38,7 +38,7 @@ async function start() {
   const httpServer = createServer(app);
   const io = new Server(httpServer, {
     cors: {
-    origin: "*",
+    origin: FRONT_URL,
     methods: ["GET", "POST", "PATCH"]
   }
   });

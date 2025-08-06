@@ -1,5 +1,6 @@
 import { Client, Message } from 'whatsapp-web.js';
 import mongoose from 'mongoose';
+import { getClient, deleteClient } from '../whatsapp';
 import { PROPOSAL_OPTIONS, SERVICE_FORM, BOARD_CODES } from "./consts";
 import { userStates, userServiceMap } from "./states";
 import { PORT } from '../../env';
@@ -22,6 +23,17 @@ export async function deleteRemoteAuthSession(clientId: string) {
     console.log(`> arquivos: ${resultFiles?.deletedCount}, chunks: ${resultChunks?.deletedCount}`);
   } catch (err) {
     console.error('Erro ao apagar sessão manualmente:', err);
+  }
+}
+
+export async function destroyLocalClient() {
+  const client = getClient();
+
+  await client.destroy();
+
+  const store = (client as any).authStrategy?.store;
+  if (store && typeof store.delete === 'function') {
+    deleteClient();
   }
 }
 
@@ -116,14 +128,43 @@ async function handleMondayNewTask(phone: string, name: string, form: string, ta
   }
 }
 
+async function createNewContact(name: string, number: string) {
+  try {
+    await fetch(`${API_BASE_URL}/api/contacts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        whatsappName: name,
+        phone: number,
+        status: "primeiro_contato"
+      }),
+    });
+  } catch (err) {
+    console.error("Erro ao criar contato:", err);
+  }
+}
+
+async function updateContact(number: string, content: string, service: string) {
+  try {
+    await fetch(`${API_BASE_URL}/api/contacts`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        {
+          phone: number,
+          form: content,
+          status: "aguardando_tarefa",
+          service,
+        }
+      ),
+    });
+  } catch (err) {
+    console.error("Erro ao atualizar contato", err);
+  }
+}
+
 export async function handleIncomingMessage(msg: Message, client: Client) {
   const number = msg.from;
-
-  // ✅ Ignora mensagens que não sejam de contatos diretos (ex: grupos, status, broadcast)
-  if (!number.endsWith('@c.us')) {
-    console.log('📵 Ignorado: mensagem não é de contato direto:', number);
-    return;
-  }
 
   const state = userStates.get(number);
 
@@ -146,22 +187,7 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
     const service = userServiceMap.get(number) ?? null;
 
     // PATCH: atualiza o contato com o formulário completo
-    try {
-      await fetch(`${API_BASE_URL}/api/contacts`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          {
-            phone: number,
-            form: content,
-            status: "aguardando_tarefa",
-            service,
-          }
-        ),
-      });
-    } catch (err) {
-      console.error("Erro ao atualizar contato", err);
-    }
+    updateContact(number, content, service);
 
     await msg.reply("✅ Obrigado pelas informações! Enviaremos sua proposta em breve.");
     console.log("Mensagem recebida, estado atribuido: aguardando_tarefa");
@@ -184,6 +210,21 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
         method: 'GET',
       });
       const contactData = await contact.json();
+
+      if (!contactData?.service) {
+        console.log("Estado recuperado: aguardando_opcao");
+        userStates.set(number, 'aguardando_opcao');
+        handleIncomingMessage(msg, client);
+        return;
+      };
+
+      if (!contactData?.form) {
+        console.log("Estado recuperado: aguardando_formulario");
+        userStates.set(number, 'aguardando_formulario');
+        handleIncomingMessage(msg, client);
+        return;
+      };
+
       isOldContact = contactData && contactData.phone === number;
     } catch (err) {
       console.error("Erro ao criar contato:", err);
@@ -196,19 +237,7 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
     }
 
     console.log("Mensagem recebida, estado atribuido: primeiro_contato");
-    try {
-      await fetch(`${API_BASE_URL}/api/contacts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          whatsappName: name,
-          phone: number,
-          status: "primeiro_contato"
-        }),
-      });
-    } catch (err) {
-      console.error("Erro ao criar contato:", err);
-    }
+    await createNewContact(name, number);
 
     await client.sendMessage(msg.from,
       `Olá! A GeoView agradece seu contato.\nMeu nome é Henrique de Sá, gerente de projetos da GeoView.\n\nEscolha o serviço que deseja hoje:\n\n${optionList}`

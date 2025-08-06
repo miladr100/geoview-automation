@@ -6,8 +6,8 @@ import { Client, RemoteAuth } from 'whatsapp-web.js';
 import qrcodeTerminal from 'qrcode-terminal';
 import { Server } from 'socket.io';
 import { MongoStore } from 'wwebjs-mongo';
-import { handleIncomingMessage } from './utils/functions';
-import { SESSION_ID, MONGO_URL } from '../env';
+import { handleIncomingMessage, deleteRemoteAuthSession, destroyLocalClient } from './utils/functions';
+import { SESSION_ID, MONGO_URL, ENVIRONMENT } from '../env';
 
 declare global {
   var _whatsappClient: Client | undefined;
@@ -25,34 +25,51 @@ export async function initWhatsApp(socketServer?: Server) {
 
   io = socketServer ?? global._socketIO ?? io;
 
-  const mongoStore = new MongoStore({ mongoose });
+  try {
+    const mongoStore = new MongoStore({ mongoose });
 
-  client = client ? client : new Client({
-    puppeteer: {
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--single-process',
-        '--no-zygote',
-      ],
-      executablePath: "/usr/bin/chromium-browser",
-    },
-    authStrategy: new RemoteAuth({
-      clientId: SESSION_ID,
-      store: mongoStore,
-      backupSyncIntervalMs: 300000,
-    }),
-  });
+    client = client ? client : new Client({
+      puppeteer: {
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+          '--no-zygote',
+        ],
+        executablePath: ENVIRONMENT === "dev" ? puppeteer.executablePath() : "/usr/bin/chromium-browser",
+      },
+      authStrategy: new RemoteAuth({
+        clientId: SESSION_ID,
+        store: mongoStore,
+        backupSyncIntervalMs: 300000,
+      }),
+    });
 
-  global._whatsappClient = client;
+    global._whatsappClient = client;
 
-  setupClientEvents(client, io!);
+    setupClientEvents(client, io!);
 
-  client.initialize();
-  console.log("✅ Cliente WhatsApp inicializado com sucesso...");
+    await client.initialize();
+    console.log("✅ Cliente WhatsApp inicializado com sucesso...");
+  } catch (err) {
+    console.error("❌ Erro ao inicializar WhatsApp:", err);
+    console.error("Tentando deletar sessão...", err);
+    await destroyLocalClient()
+      .then(() => console.log('✅ Cliente local destruído com sucesso'))
+      .catch(err => console.error('❌ Erro ao destruir cliente local:', err));
+    await deleteRemoteAuthSession(SESSION_ID)
+      .then(() => console.log('✅ Sessão remota deletada com sucesso'))
+      .catch(err => console.error('❌ Erro ao deletar sessão remota:', err));
+
+    // Aguarda um pouco e tenta de novo
+    setTimeout(() => {
+      console.log('🔄 Reiniciando cliente...');
+      initWhatsApp(io);
+    }, 5000);
+  }
 }
 
 function setupClientEvents(client: Client, ioSock: Server) {
@@ -96,6 +113,11 @@ function setupClientEvents(client: Client, ioSock: Server) {
   });
 
   client.on('message', async (msg) => {
+    // ✅ Ignora mensagens que não sejam de contatos diretos (ex: grupos, status, broadcast)
+    if (!msg.from.endsWith('@c.us')) {
+      console.log(`📵 Mensagem ignorada de ${msg.from}: ${msg.body}`);
+      return;
+    }
     console.log(`📩 Mensagem recebida de ${msg.from}: ${msg.body}`);
     await handleIncomingMessage(msg, client);
   });
