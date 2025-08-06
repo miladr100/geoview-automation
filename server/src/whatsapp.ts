@@ -38,7 +38,7 @@ export async function initWhatsApp(socketServer?: Server) {
         '--single-process',
         '--no-zygote',
       ],
-      executablePath: puppeteer.executablePath()
+      executablePath: "/usr/bin/chromium-browser",
     },
     authStrategy: new RemoteAuth({
       clientId: SESSION_ID,

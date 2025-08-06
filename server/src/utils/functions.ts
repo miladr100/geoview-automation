@@ -119,6 +119,12 @@ async function handleMondayNewTask(phone: string, name: string, form: string, ta
 export async function handleIncomingMessage(msg: Message, client: Client) {
   const number = msg.from;
 
+  // ✅ Ignora mensagens de grupo
+  if (number.endsWith('@g.us')) {
+    console.log('📵 Mensagem de grupo ignorada:', number);
+    return;
+  }
+
   const state = userStates.get(number);
 
   // Estado: aguardando resposta do formulário
