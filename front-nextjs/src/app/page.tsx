@@ -2,9 +2,9 @@
 'use client';
 
 import io from 'socket.io-client';
-import { useEffect, useState } from 'react';
-import { WHATSAPP_STATES } from "@/utils/consts";
-import { api } from "@/utils/functions";
+import { useEffect, useState, useRef } from 'react';
+import { WHATSAPP_STATES, STATUS_CLASS } from "@/utils/consts";
+import { api, getStatusText } from "@/utils/functions";
 import './page.css';
 
 const headers = {
@@ -16,17 +16,16 @@ export default function Home() {
   const [status, setStatus] = useState<'connected' | 'waiting' | 'disconnected' | 'reconnecting' | 'uninitialized' | 'loading'>('loading');
   const [message, setMessage] = useState({ number: "55", message: "" });
   const [isUserDisconnection, setIsUserDisconnection] = useState(false);
-  const [isReconnecting, setIsReconnecting] = useState(false);
   const [loadingQR, setLoadingQR] = useState(false);
+  const socketRef = useRef<ReturnType<typeof io> | null>(null);
 
   useEffect(() => {
     const socket = io(process.env.NEXT_PUBLIC_API_BASE_URL, {
-      extraHeaders: {
-        'ngrok-skip-browser-warning': 'true'
-      },
+      extraHeaders: headers,
       transports: ['websocket']
     });
 
+    socketRef.current = socket;
 
     fetch(api('/api/session-status'), { headers })
       .then(res => res.json())
@@ -80,44 +79,23 @@ export default function Home() {
     };
   }, []);
 
-  async function tryReconnect() {
+  async function tryReconnect(attempt = 1) {
     const MAX_ATTEMPTS = 7;
-    const INTERVAL_MS = 10000;
+    if (attempt > MAX_ATTEMPTS) {
+      return console.error("🛑 Não foi possível reconectar após várias tentativas.");
+    }
 
-    if (!isReconnecting) {
-      setIsReconnecting(true);
-      const res = await fetch(api('/api/check-session'), { method: 'POST', headers });
-      const data = await res.json();
-      if (data.session) {
-        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-          console.log(`🔄 Tentativa de reconexão ${attempt}/${MAX_ATTEMPTS}...`);
-
-          try {
-            const res = await fetch(api('/api/generate-qr'), { method: 'POST', headers });
-            console.log(res)
-
-            if (res.ok) {
-              console.log("✅ Tentativa de reconexão bem-sucedida!");
-              setStatus('reconnecting');
-              setIsReconnecting(false)
-              return;
-            } else {
-              console.warn(`❌ Falha na tentativa ${attempt}`);
-            }
-          } catch (error) {
-            setIsReconnecting(false)
-            console.error(`⚠️ Erro na tentativa ${attempt}:`, error);
-          }
-
-          if (attempt < MAX_ATTEMPTS) {
-            await new Promise(resolve => setTimeout(resolve, INTERVAL_MS));
-          } else {
-            setIsReconnecting(false)
-          }
-        }
-        console.error("🛑 Não foi possível reconectar após 1 minuto.");
+    console.log(`🔄 Tentativa de reconexão ${attempt}/${MAX_ATTEMPTS}...`);
+    try {
+      const res = await fetch(api('/api/generate-qr'), { method: 'POST', headers });
+      if (res.ok) {
+        console.log("✅ Reconectado!");
+        setStatus('reconnecting');
+      } else {
+        throw new Error();
       }
-      setIsReconnecting(false);
+    } catch {
+      setTimeout(() => tryReconnect(attempt + 1), 10000);
     }
   }
 
@@ -143,6 +121,7 @@ export default function Home() {
 
   const handleGenerateQR = async () => {
     setLoadingQR(true);
+    setQrCode(null);
     try {
       const res = await fetch(api('/api/generate-qr'), { method: 'POST', headers });
       if (!res.ok) throw new Error('Falha ao gerar QR Code.');
@@ -154,26 +133,12 @@ export default function Home() {
     }
   };
 
-  const statusClass = {
-    connected: 'status-connected',
-    waiting: 'status-waiting',
-    disconnected: 'status-disconnected',
-    uninitialized: 'uninitialized',
-    reconnecting: 'reconnecting',
-    loading: 'loading',
-  }[status];
-
   return (
     <div className="container">
       <h1 className="title">GeoView Conexão com WhatsApp</h1>
 
-      <div className={`status ${statusClass}`}>
-        {status === 'loading' && '⌛ Carregando...'}
-        {status === 'connected' && '✅ Conectado'}
-        {status === 'waiting' && '🕒 Escaneie o QR para conectar...'}
-        {status === 'reconnecting' && '🕒 Reconectando, aguarde...'}
-        {status === 'uninitialized' && '⌛ Gerando QR Code...'}
-        {status === 'disconnected' && '❌ Desconectado'}
+      <div className={`status ${STATUS_CLASS[status]}`}>
+        {getStatusText(status)}
       </div>
 
       <div className="button-group">

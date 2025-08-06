@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { Client, Message } from 'whatsapp-web.js';
 import mongoose from 'mongoose';
 import { getClient, deleteClient } from '../whatsapp';
@@ -6,6 +8,8 @@ import { userStates, userServiceMap } from "./states";
 import { PORT } from '../../env';
 
 const API_BASE_URL = `http://localhost:${PORT}`
+const SESSION_AUTH_FOLDER = '.wwebjs_auth';
+const SESSION_CASH_FOLDER = '.wwebjs_cache';
 
 export async function deleteRemoteAuthSession(clientId: string) {
   const db = mongoose.connection.db;
@@ -23,6 +27,19 @@ export async function deleteRemoteAuthSession(clientId: string) {
     console.log(`> arquivos: ${resultFiles?.deletedCount}, chunks: ${resultChunks?.deletedCount}`);
   } catch (err) {
     console.error('Erro ao apagar sessão manualmente:', err);
+  }
+}
+
+export function deleteLocalAuthSession() {
+  const sessionPath = path.join(process.cwd(), SESSION_AUTH_FOLDER);
+  const sessionCashPath = path.join(process.cwd(), SESSION_CASH_FOLDER);
+  if (fs.existsSync(sessionPath)) {
+    fs.rmSync(sessionPath, { recursive: true, force: true });
+    console.log(`🗑 Sessão auth local antiga removida`);
+  }
+  if (fs.existsSync(sessionCashPath)) {
+    fs.rmSync(sessionCashPath, { recursive: true, force: true });
+    console.log(`🗑 Sessão cash local antiga removida`);
   }
 }
 
@@ -210,22 +227,23 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
         method: 'GET',
       });
       const contactData = await contact.json();
+      isOldContact = contactData && contactData.phone === number;
 
-      if (!contactData?.service) {
+      if (isOldContact && !contactData?.service) {
         console.log("Estado recuperado: aguardando_opcao");
         userStates.set(number, 'aguardando_opcao');
         handleIncomingMessage(msg, client);
         return;
       };
 
-      if (!contactData?.form) {
+      if (isOldContact && !contactData?.form) {
         console.log("Estado recuperado: aguardando_formulario");
         userStates.set(number, 'aguardando_formulario');
         handleIncomingMessage(msg, client);
         return;
       };
 
-      isOldContact = contactData && contactData.phone === number;
+      
     } catch (err) {
       console.error("Erro ao criar contato:", err);
     }

@@ -38,3 +38,12 @@ export const USER_MESSAGE_STATES = {
   aguardando_formulario: "aguardando_formulario",
   aguardando_opcao: "aguardando_opcao"
 }
+
+export const STATUS_CLASS = {
+  connected: 'status-connected',
+  waiting: 'status-waiting',
+  disconnected: 'status-disconnected',
+  uninitialized: 'uninitialized',
+  reconnecting: 'reconnecting',
+  loading: 'loading',
+}

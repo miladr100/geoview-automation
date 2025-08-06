@@ -1,5 +1,9 @@
 import mongoose from 'mongoose';
-import { MONGO_URL } from '../env';
+import { MONGO_URL, SESSION_ID } from '../env';
+import {
+  deleteRemoteAuthSession,
+  deleteLocalAuthSession,
+} from './utils/functions';
 
 export async function connectMongo() {
   if (!MONGO_URL) {
@@ -8,4 +12,8 @@ export async function connectMongo() {
 
   await mongoose.connect(MONGO_URL);
   console.log('✅ Conectado ao MongoDB');
+  deleteLocalAuthSession();
+  await deleteRemoteAuthSession(SESSION_ID)
+    .then(() => console.log('✅ Sessão remota deletada com sucesso'))
+    .catch(err => console.error('❌ Erro ao deletar sessão remota:', err));
 }

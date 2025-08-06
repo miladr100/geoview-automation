@@ -6,7 +6,11 @@ import { Client, RemoteAuth } from 'whatsapp-web.js';
 import qrcodeTerminal from 'qrcode-terminal';
 import { Server } from 'socket.io';
 import { MongoStore } from 'wwebjs-mongo';
-import { handleIncomingMessage, deleteRemoteAuthSession, destroyLocalClient } from './utils/functions';
+import {
+  handleIncomingMessage,
+  deleteRemoteAuthSession,
+  destroyLocalClient,
+} from './utils/functions';
 import { SESSION_ID, MONGO_URL, ENVIRONMENT } from '../env';
 
 declare global {
@@ -18,8 +22,16 @@ let io: Server | undefined = global._socketIO;
 let client: Client | undefined = global._whatsappClient;
 
 let lastQrCode: string | null = null;
+let isInitializing = false;
 
 export async function initWhatsApp(socketServer?: Server) {
+  if (isInitializing || client?.info) {
+    console.log('⚠️ Cliente WhatsApp já está sendo inicializado ou pronto. Ignorando nova tentativa.');
+    return;
+  }
+
+  isInitializing = true;
+
   if (!MONGO_URL) throw new Error("MONGO_URL não definido");
   if (!io && !socketServer) throw new Error("Socket não definido");
 
@@ -56,7 +68,7 @@ export async function initWhatsApp(socketServer?: Server) {
     console.log("✅ Cliente WhatsApp inicializado com sucesso...");
   } catch (err) {
     console.error("❌ Erro ao inicializar WhatsApp:", err);
-    console.error("Tentando deletar sessão...", err);
+    console.log("🗑️ Tentando deletar sessão e reiniciar cliente...");
     await destroyLocalClient()
       .then(() => console.log('✅ Cliente local destruído com sucesso'))
       .catch(err => console.error('❌ Erro ao destruir cliente local:', err));
@@ -136,6 +148,7 @@ export function deleteClient() {
     return;
   }
   global._whatsappClient = undefined;
+  isInitializing = false;
   client = undefined;
 }
 
