@@ -119,9 +119,9 @@ async function handleMondayNewTask(phone: string, name: string, form: string, ta
 export async function handleIncomingMessage(msg: Message, client: Client) {
   const number = msg.from;
 
-  // ✅ Ignora mensagens de grupo
-  if (number.endsWith('@g.us')) {
-    console.log('📵 Mensagem de grupo ignorada:', number);
+  // ✅ Ignora mensagens que não sejam de contatos diretos (ex: grupos, status, broadcast)
+  if (!number.endsWith('@c.us')) {
+    console.log('📵 Ignorado: mensagem não é de contato direto:', number);
     return;
   }
 
