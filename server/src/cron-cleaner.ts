@@ -26,6 +26,7 @@ cron.schedule("0 2 * * *", async () => {
 
   try {
     const result = await ClientContact.deleteMany({
+      block: { $ne: true }, // não remove se block === true
       $or: [
         { createdAt: { $lt: cutoff } },
         { form: { $in: [null, undefined] } }
