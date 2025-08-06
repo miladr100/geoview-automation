@@ -8,6 +8,7 @@ export interface IClientContact extends Document {
   form?: string | null;
   boardId?: string | null;
   groupId?: string | null;
+  block?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -20,6 +21,7 @@ const ClientContactSchema = new Schema<IClientContact>(
     service: { type: String, default: null },
     boardId: { type: String, default: null },
     groupId: { type: String, default: null },
+    block: { type: Boolean, default: false },
     form: { type: String, default: null },
   },
   { timestamps: true }

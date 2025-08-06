@@ -7,9 +7,9 @@ import qrcodeTerminal from 'qrcode-terminal';
 import { Server } from 'socket.io';
 import { MongoStore } from 'wwebjs-mongo';
 import {
-  handleIncomingMessage,
   deleteRemoteAuthSession,
   destroyLocalClient,
+  getMessageAndRedirect
 } from './utils/functions';
 import { SESSION_ID, MONGO_URL, ENVIRONMENT } from '../env';
 
@@ -131,7 +131,7 @@ function setupClientEvents(client: Client, ioSock: Server) {
       return;
     }
     console.log(`📩 Mensagem recebida de ${msg.from}: ${msg.body}`);
-    await handleIncomingMessage(msg, client);
+    await getMessageAndRedirect(msg, client);
   });
 }
 

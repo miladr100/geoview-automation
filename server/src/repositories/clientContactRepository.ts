@@ -20,4 +20,8 @@ export class ClientContactRepository {
       { $set: newDocument }
     );
   }
+
+  async deleteContactByPhoneNumber(phone: string) {
+    return ClientContactModel.deleteOne({ phone });
+  }
 }

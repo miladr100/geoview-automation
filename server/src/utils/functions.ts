@@ -1,10 +1,11 @@
 import fs from 'fs';
 import path from 'path';
-import { Client, Message } from 'whatsapp-web.js';
 import mongoose from 'mongoose';
+import { Client, Message } from 'whatsapp-web.js';
+import { IClientContact } from '../models/ClientContact';
 import { getClient, deleteClient } from '../whatsapp';
 import { PROPOSAL_OPTIONS, SERVICE_FORM, BOARD_CODES } from "./consts";
-import { userStates, userServiceMap } from "./states";
+import { userServiceMap } from "./states";
 import { PORT } from '../../env';
 
 const API_BASE_URL = `http://localhost:${PORT}`
@@ -161,7 +162,7 @@ async function createNewContact(name: string, number: string) {
   }
 }
 
-async function updateContact(number: string, content: string, service: string) {
+async function updateContact(number: string, content: string, service: string, status: string) {
   try {
     await fetch(`${API_BASE_URL}/api/contacts`, {
       method: 'PATCH',
@@ -170,7 +171,7 @@ async function updateContact(number: string, content: string, service: string) {
         {
           phone: number,
           form: content,
-          status: "aguardando_tarefa",
+          status,
           service,
         }
       ),
@@ -180,13 +181,13 @@ async function updateContact(number: string, content: string, service: string) {
   }
 }
 
-export async function handleIncomingMessage(msg: Message, client: Client) {
+export async function handleIncomingMessage(msg: Message, client: Client, currentState: string | null = null, clientContact: IClientContact | null) {
   const number = msg.from;
-
-  const state = userStates.get(number);
+  const service = clientContact?.service || null;
+  const optionList = PROPOSAL_OPTIONS.map((opt, i) => `${i + 1} - ${opt}`).join('\n');
 
   // Estado: aguardando resposta do formulário
-  if (state === 'aguardando_formulario') {
+  if (currentState === 'aguardando_formulario') {
     const MIN_LENGTH = 60;
     const content = msg.body.trim();
     const contact = await msg.getContact();
@@ -201,25 +202,20 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
       return;
     }
 
-    const service = userServiceMap.get(number) ?? null;
-
     // PATCH: atualiza o contato com o formulário completo
-    updateContact(number, content, service);
+    updateContact(number, content, service, 'aguardando_tarefa');
 
     await msg.reply("✅ Obrigado pelas informações! Enviaremos sua proposta em breve.");
     console.log("Mensagem recebida, estado atribuido: aguardando_tarefa");
 
     await handleMondayNewTask(number, name, content, service);
-    userStates.delete(number);
-    userServiceMap.delete(number);
     return;
   }
 
   // Primeira mensagem ou qualquer outra
-  if (!state) {
-    const optionList = PROPOSAL_OPTIONS.map((opt, i) => `${i + 1} - ${opt}`).join('\n');
+  if (!currentState) {
     const contact = await msg.getContact();
-    const name = contact.pushname || contact.name || '';
+    const name = contact.pushname || contact.name || '(Desconhecido)';
     let isOldContact = false;
 
     try {
@@ -228,28 +224,11 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
       });
       const contactData = await contact.json();
       isOldContact = contactData && contactData.phone === number;
-
-      if (isOldContact && !contactData?.service) {
-        console.log("Estado recuperado: aguardando_opcao");
-        userStates.set(number, 'aguardando_opcao');
-        handleIncomingMessage(msg, client);
-        return;
-      };
-
-      if (isOldContact && !contactData?.form) {
-        console.log("Estado recuperado: aguardando_formulario");
-        userStates.set(number, 'aguardando_formulario');
-        handleIncomingMessage(msg, client);
-        return;
-      };
-
-      
     } catch (err) {
       console.error("Erro ao criar contato:", err);
     }
 
     if (isOldContact) {
-      userStates.set(number, 'contato_duplicado');
       console.log("Mensagem recebida, estado atribuido: contato_duplicado");
       return;
     }
@@ -260,23 +239,24 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
     await client.sendMessage(msg.from,
       `Olá! A GeoView agradece seu contato.\nMeu nome é Henrique de Sá, gerente de projetos da GeoView.\n\nEscolha o serviço que deseja hoje:\n\n${optionList}`
     );
-    userStates.set(number, 'aguardando_opcao');
     console.log("Mensagem recebida, estado atribuido: aguardando_opcao");
     return;
   }
 
   // Estado: aguardando seleção de opção
-  if (state === 'aguardando_opcao') {
+  if (currentState === 'aguardando_opcao') {
     const index = parseInt(msg.body.trim()) - 1;
     const isValid = index >= 0 && index < PROPOSAL_OPTIONS.length;
 
     const selectedOption = isValid ? PROPOSAL_OPTIONS[index] : msg.body.trim();
     if (!isValid && !PROPOSAL_OPTIONS.includes(selectedOption)) {
-      await msg.reply("Opção inválida. Por favor, escolha uma das opções enviadas anteriormente.");
+      await msg.reply(`Opção inválida. Por favor, escolha uma das opções enviadas anteriormente.\n\n${optionList}`);
       return;
     }
 
     userServiceMap.set(number, selectedOption);
+    // PATCH: atualiza o contato com o formulário completo
+    updateContact(number, null, selectedOption, 'aguardando_formulario');
 
     await msg.reply(
       `Perfeito! Entendemos que você gostaria de um serviço de *${selectedOption}*.\n\n` +
@@ -284,12 +264,43 @@ export async function handleIncomingMessage(msg: Message, client: Client) {
       SERVICE_FORM.join('\n')
     );
 
-    userStates.set(number, 'aguardando_formulario');
     console.log("Mensagem recebida, estado atribuido: aguardando_formulario");
     return;
   }
 
-  if (state === 'contato_duplicado') {
+  if (currentState === 'contato_duplicado') {
+    console.log("Mensagem recebida, estado atribuido: contato_duplicado");
     return;
   }
+}
+
+export async function getMessageAndRedirect(msg: Message, client: Client) {
+  const number = msg.from;
+
+  let contactData: IClientContact | null = null;
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/contacts?phone=${number}`);
+    contactData = await response.json();
+  } catch (err) {
+    console.error("Erro ao buscar contato:", err);
+    return;
+  }
+
+  if(contactData?.block) {
+    console.log("Contato bloqueado, ignorando mensagem.");
+    return;
+  }
+
+  let currentState: string | null = null;
+  if (!contactData || !contactData.phone) {
+    currentState = null;
+  } else if (!contactData.service && !contactData.form) {
+    currentState = 'aguardando_opcao';
+  } else if (contactData.service && !contactData.form) {
+    currentState = 'aguardando_formulario';
+  } else {
+    currentState = 'contato_duplicado';
+  }
+
+  handleIncomingMessage(msg, client, currentState, contactData);
 }

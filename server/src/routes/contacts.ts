@@ -71,4 +71,27 @@ router.patch("/", async (req: Request, res: Response) => {
   }
 });
 
+// DELETE /api/contacts/:phone
+router.delete("/", async (req: Request, res: Response) => {
+  const phone = (req.query.phone as string) || "";
+
+  if (!phone) {
+    return res.status(400).json({ success: false, error: "Parâmetro 'phone' é obrigatório." });
+  }
+
+  try {
+    const result = await clientContactRepository.deleteContactByPhoneNumber(phone);
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ success: false, message: "Contato não encontrado." });
+    }
+
+    return res.json({ success: true, message: "Contato removido com sucesso." });
+  } catch (err) {
+    console.error("Erro ao deletar contato:", err);
+    return res.status(500).json({ success: false, error: "Erro interno do servidor" });
+  }
+});
+
+
 export default router;
