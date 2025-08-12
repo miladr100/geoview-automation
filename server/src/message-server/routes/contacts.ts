@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
-import { ClientContactRepository } from "../repositories/clientContactRepository";
-import { ClientContactSchema } from "../schemas/ClientContactSchema";
+import { ClientContactRepository } from "../../repositories/clientContactRepository";
+import { ClientContactSchema } from "../../schemas/ClientContactSchema";
 import { ZodError } from "zod";
 
 const router = express.Router();
@@ -53,7 +53,9 @@ router.patch("/", async (req: Request, res: Response) => {
     const result = await clientContactRepository.updateContactByPhone(phone || "", updateData);
 
     if (result.matchedCount === 0) {
-      return res.status(404).json({ success: false, message: "Contato não encontrado." });
+      const parsed = ClientContactSchema.omit({ _id: true, createdAt: true }).parse(req.body);
+      const created = await clientContactRepository.insertNewContact(parsed);
+      return res.status(201).json(created);
     }
 
     return res.json({ success: true });
@@ -86,12 +88,11 @@ router.delete("/", async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, message: "Contato não encontrado." });
     }
 
-    return res.json({ success: true, message: "Contato removido com sucesso." });
+    return res.json({ success: true, message: "Contato removido com sucesso.", phone });
   } catch (err) {
     console.error("Erro ao deletar contato:", err);
     return res.status(500).json({ success: false, error: "Erro interno do servidor" });
   }
 });
-
 
 export default router;

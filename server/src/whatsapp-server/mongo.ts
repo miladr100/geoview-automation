@@ -1,9 +1,9 @@
 import mongoose from 'mongoose';
-import { MONGO_URL, SESSION_ID } from '../env';
+import { MONGO_URL, SESSION_ID } from '../../env';
 import {
   deleteRemoteAuthSession,
   deleteLocalAuthSession,
-} from './utils/functions';
+} from './functions';
 
 export async function connectMongo() {
   if (!MONGO_URL) {

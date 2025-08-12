@@ -1,6 +1,6 @@
 // routes/addComment.ts
 import express, { Request, Response } from "express";
-import { MONDAY_API_TOKEN } from "../../env";
+import { MONDAY_API_TOKEN } from "../../../env";
 
 const router = express.Router();
 

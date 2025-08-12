@@ -1,6 +1,7 @@
 // lib/useSocket.ts
 import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { api } from '@/utils/functions';
 
 export function useSocket() {
   const socketRef = useRef<Socket>(null);
@@ -8,7 +9,7 @@ export function useSocket() {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    const socket = io(process.env.NEXT_PUBLIC_API_BASE_URL);
+    const socket = io(api('/'));
     socketRef.current = socket;
 
     socket.on('connect', () => {

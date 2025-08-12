@@ -9,9 +9,8 @@ import { MongoStore } from 'wwebjs-mongo';
 import {
   deleteRemoteAuthSession,
   destroyLocalClient,
-  getMessageAndRedirect
-} from './utils/functions';
-import { SESSION_ID, MONGO_URL, ENVIRONMENT } from '../env';
+} from './functions';
+import { MESSAGE_PORT, WHATSAPP_PORT, SESSION_ID, MONGO_URL, ENVIRONMENT } from '../../env';
 
 declare global {
   var _whatsappClient: Client | undefined;
@@ -131,7 +130,29 @@ function setupClientEvents(client: Client, ioSock: Server) {
       return;
     }
     console.log(`📩 Mensagem recebida de ${msg.from}: ${msg.body}`);
-    await getMessageAndRedirect(msg, client);
+    const contact = await msg.getContact();
+    const name = contact?.pushname || contact?.name || 'Desconhecido';
+    // Envia mensagem para o message-server processar
+    try {
+      const response = await fetch(`http://localhost:${MESSAGE_PORT}/api/process-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: msg.from,
+          body: msg.body,
+          name,
+          messageId: msg.id._serialized,
+          // Adiciona callback URL para resposta
+          callbackUrl: `http://localhost:${WHATSAPP_PORT}/api/send-response`
+        })
+      });
+
+      if (!response.ok) {
+        console.error('❌ Erro ao processar mensagem no message-server');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao enviar mensagem para processamento:', error);
+    }
   });
 }
 

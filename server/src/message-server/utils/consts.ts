@@ -77,15 +77,14 @@ export const BOARD_CODES = {
 };
 
 export const SERVICE_FORM = [
-  "1. Tipo de serviço:",
-  "2. Nome do solicitante:",
-  "3. Empresa (caso exista):",
-  "4. Email:",
-  "5. Telefone de contato:",
-  "6. Local do serviço:",
-  "7. Tamanho da área de pesquisa:",
-  "8. Previsão de realização do serviço:",
-  "9. Observações:"
+  "1. Nome do solicitante:",
+  "2. Empresa (caso exista):",
+  "3. Email:",
+  "4. Telefone de contato:",
+  "5. Local do serviço:",
+  "6. Tamanho da área de pesquisa:",
+  "7. Previsão de realização do serviço:",
+  "8. Observações:"
 ];
 
 export const WHATSAPP_STATES = {

@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "tsx src/socket.ts",
-    "build": "tsc",
-    "start": "node dist/socket.js",
+    "dev:whatsapp": "tsx src/whatsapp-server/server.ts",
+    "dev:message": "tsx src/message-server/server.ts",
+    "build:whatsapp": "tsc src/whatsapp-server/server.ts",
+    "build:message": "tsc src/message-server/server.ts",
+    "start:whatsapp": "node dist/whatsapp-server/server.js",
+    "start:message": "node dist/message-server/server.js",
     "start:cron": "tsx src/cron-cleaner.ts"
   },
   "ts-node": {

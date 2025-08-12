@@ -1,7 +1,7 @@
 'use client';
 // pages/ignore.tsx
 import { useEffect, useState } from 'react';
-import { api } from "@/utils/functions";
+import { messageApi } from "@/utils/functions";
 import { ClientContact } from "@/utils/types";
 import './ignore.css';
 
@@ -16,7 +16,7 @@ export default function ContactsPage() {
     useEffect(() => {
         const checkServer = async () => {
             try {
-                const res = await fetch(api('/api/ping'));
+                const res = await fetch(messageApi('/api/ping'));
                 const result = await res.json();
                 if (result?.ok) {
                     setIsReady(true);
@@ -36,7 +36,7 @@ export default function ContactsPage() {
 
     // Carregar contatos ao iniciar
     useEffect(() => {
-        fetch(api('/api/contacts?all=true'))
+        fetch(messageApi('/api/contacts?all=true'))
             .then(res => res.json())
             .then(data => {
                 setAllContacts(data || []);
@@ -47,59 +47,39 @@ export default function ContactsPage() {
             .catch(err => console.error('Erro ao buscar contatos', err));
     }, [isReady]);
 
-    const handleOnlyBlockContact = async (contact: ClientContact) => {
-        const newDocument = {
-            phone: contact.phone,
-            block: true,
-        };
+    console.log("allContacts: ", allContacts);
 
-        const res = await fetch(api('/api/contacts'), {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newDocument),
-        });
-
-        console.log("Resposta ao bloquear contato:", res);
-
-        if (res.ok) {
-            const saved = await res.json();
-            console.log("Contato bloqueado:", saved);
-            setContacts(prev => [...prev, contact]);
-            setPhoneNumber('');
-            setWhatsappName('');
-        } else {
-            console.error('Erro ao bloquear contato');
-        }
-    }
-
-    const handleAddContact = async () => {
+    const handleBlockContact = async () => {
         if (!phoneNumber) {
             alert('Número de telefone é obrigatório');
             return;
         }
         const sanitizedNumber = phoneNumber.replace(/\D/g, '');
-        if (!/^55\d{10,}$/.test(sanitizedNumber)) {
-            alert('Número inválido. Deve conter o código do país (ex: 55) e o número completo.');
+        if (!/^\d{10,}$/.test(sanitizedNumber)) {
+            alert('Número inválido. Deve conter pelo menos 10 dígitos (incluindo DDD).');
             return;
         }
-        const foundContact = allContacts.find(c => c.phone.includes(sanitizedNumber));
+        
+        // Verifica se tem DDD (2 dígitos após o código do país)
+        if (!/^\d{2}\d{8,}$/.test(sanitizedNumber)) {
+            alert('Número inválido. Deve conter DDD (2 dígitos) após o código do país.');
+            return;
+        }
+
+        // Verifica se o contato já existe e está bloqueado
+        const foundContact = allContacts.find(c => c.phone.includes(sanitizedNumber) && c.block);
         if (foundContact) {
-            console.log("Contato já existe, apenas bloqueando.");
-            handleOnlyBlockContact(foundContact);
+            alert('Contato já existe e está bloqueado.');
             return;
         }
-        const newContact = {
+        const newDocument = {
             phone: `${sanitizedNumber}@c.us`,
-            whatsappName: whatsappName || "Desconhecido",
-            status: "bloqueado",
-            service: "bloqueado",
-            form: "bloqueado",
-            block: true,
+            name: whatsappName || "Desconhecido",
         };
-        const res = await fetch(api('/api/contacts'), {
+        const res = await fetch(messageApi('/api/block-contact'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newContact),
+            body: JSON.stringify(newDocument),
         });
 
         if (res.ok) {
@@ -113,7 +93,7 @@ export default function ContactsPage() {
     };
 
     const handleDeleteContact = async (phone: string) => {
-        const res = await fetch(api(`/api/contacts?phone=${phone}`), { method: 'DELETE' });
+        const res = await fetch(messageApi(`/api/contacts?phone=${phone}`), { method: 'DELETE' });
         const resesponse = await res.json();
         if (resesponse.success) {
             setContacts(prev => prev.filter(c => c.phone !== phone));
@@ -146,7 +126,7 @@ export default function ContactsPage() {
                                 className="form-input"
                             />
                         </div>
-                        <button onClick={handleAddContact} className="form-button add">
+                        <button onClick={handleBlockContact} className="form-button add">
                             Adicionar
                         </button>
                     </div>

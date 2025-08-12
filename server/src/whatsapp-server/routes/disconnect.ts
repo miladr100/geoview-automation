@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
+import { deleteRemoteAuthSession, destroyLocalClient } from '../functions';
+import { SESSION_ID } from '../../../env';
 import { getClient } from '../whatsapp';
-import { deleteRemoteAuthSession, destroyLocalClient } from '../../src/utils/functions';
-import { SESSION_ID } from '../../env';
 
 const router = express.Router();
 

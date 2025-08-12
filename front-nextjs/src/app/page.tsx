@@ -4,7 +4,7 @@
 import io from 'socket.io-client';
 import { useEffect, useState, useRef } from 'react';
 import { WHATSAPP_STATES, STATUS_CLASS } from "@/utils/consts";
-import { api, getStatusText } from "@/utils/functions";
+import { api, messageApi, getStatusText } from "@/utils/functions";
 import './page.css';
 
 const headers = {
@@ -20,7 +20,7 @@ export default function Home() {
   const socketRef = useRef<ReturnType<typeof io> | null>(null);
 
   useEffect(() => {
-    const socket = io(process.env.NEXT_PUBLIC_API_BASE_URL, {
+    const socket = io(api('/'), {
       extraHeaders: headers,
       transports: ['websocket']
     });

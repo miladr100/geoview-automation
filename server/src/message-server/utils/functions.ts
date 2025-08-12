@@ -1,59 +1,8 @@
-import fs from 'fs';
-import path from 'path';
-import mongoose from 'mongoose';
-import { Client, Message } from 'whatsapp-web.js';
-import { IClientContact } from '../models/ClientContact';
-import { getClient, deleteClient } from '../whatsapp';
+import { IClientContact } from '../../models/ClientContact';
 import { PROPOSAL_OPTIONS, SERVICE_FORM, BOARD_CODES } from "./consts";
-import { userServiceMap } from "./states";
-import { PORT } from '../../env';
+import { MESSAGE_PORT } from '../../../env';
 
-const API_BASE_URL = `http://localhost:${PORT}`
-const SESSION_AUTH_FOLDER = '.wwebjs_auth';
-const SESSION_CASH_FOLDER = '.wwebjs_cache';
-
-export async function deleteRemoteAuthSession(clientId: string) {
-  const db = mongoose.connection.db;
-
-  const base = `whatsapp-RemoteAuth-${clientId}`;
-
-  try {
-    const files = db?.collection(`${base}.files`);
-    const chunks = db?.collection(`${base}.chunks`);
-
-    const resultFiles = await files?.deleteMany({});
-    const resultChunks = await chunks?.deleteMany({});
-
-    console.log(`🗑 Sessão "${clientId}" removida com sucesso.`);
-    console.log(`> arquivos: ${resultFiles?.deletedCount}, chunks: ${resultChunks?.deletedCount}`);
-  } catch (err) {
-    console.error('Erro ao apagar sessão manualmente:', err);
-  }
-}
-
-export function deleteLocalAuthSession() {
-  const sessionPath = path.join(process.cwd(), SESSION_AUTH_FOLDER);
-  const sessionCashPath = path.join(process.cwd(), SESSION_CASH_FOLDER);
-  if (fs.existsSync(sessionPath)) {
-    fs.rmSync(sessionPath, { recursive: true, force: true });
-    console.log(`🗑 Sessão auth local antiga removida`);
-  }
-  if (fs.existsSync(sessionCashPath)) {
-    fs.rmSync(sessionCashPath, { recursive: true, force: true });
-    console.log(`🗑 Sessão cash local antiga removida`);
-  }
-}
-
-export async function destroyLocalClient() {
-  const client = getClient();
-
-  await client.destroy();
-
-  const store = (client as any).authStrategy?.store;
-  if (store && typeof store.delete === 'function') {
-    deleteClient();
-  }
-}
+const API_BASE_URL = `http://localhost:${MESSAGE_PORT}`
 
 async function createMondayTask(name: string, boardId: number, groupId: string, boardCode: string) {
   const date = new Date();
@@ -154,7 +103,7 @@ async function createNewContact(name: string, number: string) {
       body: JSON.stringify({
         whatsappName: name,
         phone: number,
-        status: "primeiro_contato"
+        status: "aguardando_opcao"
       }),
     });
   } catch (err) {
@@ -181,112 +130,126 @@ async function updateContact(number: string, content: string, service: string, s
   }
 }
 
-export async function handleIncomingMessage(msg: Message, client: Client, currentState: string | null = null, clientContact: IClientContact | null) {
-  const number = msg.from;
+export async function processMessageAndGenerateResponse(
+  number: string,
+  body: string,
+  name: string,
+  currentState: string | null,
+  clientContact: IClientContact | null
+) {
+  const content = body.trim();
+  const whatsappName = clientContact?.whatsappName || name;
   const service = clientContact?.service || null;
   const optionList = PROPOSAL_OPTIONS.map((opt, i) => `${i + 1} - ${opt}`).join('\n');
 
-  // Estado: aguardando resposta do formulário
-  if (currentState === 'aguardando_formulario') {
-    const MIN_LENGTH = 60;
-    const content = msg.body.trim();
-    const contact = await msg.getContact();
-    const name = contact.pushname || contact.name || '';
-
-    if (content.length < MIN_LENGTH) {
-      await msg.reply(
-        "⚠️ Sua resposta parece estar incompleta.\n" +
-        "Por favor, envie todas as informações solicitadas no formato texto.\n\n" +
-        SERVICE_FORM.join('\n')
-      );
-      return;
-    }
-
-    // PATCH: atualiza o contato com o formulário completo
-    updateContact(number, content, service, 'aguardando_tarefa');
-
-    await msg.reply("✅ Obrigado pelas informações! Enviaremos sua proposta em breve.");
-    console.log("Mensagem recebida, estado atribuido: aguardando_tarefa");
-
-    await handleMondayNewTask(number, name, content, service);
-    return;
-  }
-
-  // Primeira mensagem ou qualquer outra
+  // Primeira mensagem
   if (!currentState) {
-    const contact = await msg.getContact();
-    const name = contact.pushname || contact.name || '(Desconhecido)';
-    let isOldContact = false;
+    console.log("Mensagem de primeiro contato recebida, estado atribuido: aguardando_opcao");
+    await createNewContact(whatsappName, number);
 
-    try {
-      const contact = await fetch(`${API_BASE_URL}/api/contacts?phone=${number}`, {
-        method: 'GET',
-      });
-      const contactData = await contact.json();
-      isOldContact = contactData && contactData.phone === number;
-    } catch (err) {
-      console.error("Erro ao criar contato:", err);
-    }
-
-    if (isOldContact) {
-      console.log("Mensagem recebida, estado atribuido: contato_duplicado");
-      return;
-    }
-
-    console.log("Mensagem recebida, estado atribuido: primeiro_contato");
-    await createNewContact(name, number);
-
-    await client.sendMessage(msg.from,
-      `Olá! A GeoView agradece seu contato.\nMeu nome é Henrique de Sá, gerente de projetos da GeoView.\n\nEscolha o serviço que deseja hoje:\n\n${optionList}`
-    );
-    console.log("Mensagem recebida, estado atribuido: aguardando_opcao");
-    return;
+    return {
+      to: number,
+      message: `Olá! A GeoView agradece seu contato.\nMeu nome é Henrique de Sá, gerente de projetos da GeoView.\n\nEscolha o serviço que deseja hoje:\n\n${optionList}`,
+      type: 'text'
+    };
   }
 
   // Estado: aguardando seleção de opção
   if (currentState === 'aguardando_opcao') {
-    const index = parseInt(msg.body.trim()) - 1;
+    const index = parseInt(content) - 1;
     const isValid = index >= 0 && index < PROPOSAL_OPTIONS.length;
 
-    const selectedOption = isValid ? PROPOSAL_OPTIONS[index] : msg.body.trim();
+    const selectedOption = isValid ? PROPOSAL_OPTIONS[index] : content;
     if (!isValid && !PROPOSAL_OPTIONS.includes(selectedOption)) {
-      await msg.reply(`Opção inválida. Por favor, escolha uma das opções enviadas anteriormente.\n\n${optionList}`);
-      return;
+      return {
+        to: number,
+        message: `Opção inválida. Por favor, escolha uma das opções enviadas anteriormente.\n\n${optionList}`,
+        type: 'reply'
+      };
     }
 
-    userServiceMap.set(number, selectedOption);
     // PATCH: atualiza o contato com o formulário completo
     updateContact(number, null, selectedOption, 'aguardando_formulario');
+    console.log("Estado atribuido: aguardando_formulario");
 
-    await msg.reply(
-      `Perfeito! Entendemos que você gostaria de um serviço de *${selectedOption}*.\n\n` +
-      `Para seguirmos com sua solicitação e te enviarmos a proposta técnico-comercial, precisamos que nos envie as seguintes informações:\n\n` +
-      SERVICE_FORM.join('\n')
-    );
-
-    console.log("Mensagem recebida, estado atribuido: aguardando_formulario");
-    return;
+    return {
+      to: number,
+      message: `Perfeito! Entendemos que você gostaria de um serviço de *${selectedOption}*.\n\n` +
+        `Para seguirmos com sua solicitação e te enviarmos a proposta técnico-comercial, precisamos que nos envie as seguintes informações:\n\n` +
+        SERVICE_FORM.join('\n'),
+      type: 'reply'
+    };
   }
 
+  // Estado: aguardando resposta do formulário
+  if (currentState === 'aguardando_formulario') {
+    const MIN_LENGTH = 60;
+
+    if (content.length < MIN_LENGTH) {
+      return {
+        to: number,
+        message: "⚠️ Sua resposta parece estar incompleta.\n" +
+          "Por favor, envie todas as informações solicitadas no formato texto.\n\n" +
+          SERVICE_FORM.join('\n'),
+        type: 'reply'
+      };
+    }
+
+    // PATCH: atualiza o contato no banco de dados com o formulário completo
+    updateContact(number, content, service, 'aguardando_tarefa');
+    console.log("Estado atribuido: aguardando_tarefa");
+
+    // Cria a tarefa no Monday
+    await handleMondayNewTask(number, whatsappName, content, service);
+
+    return {
+      to: number,
+      message: "✅ Obrigado pelas informações! Enviaremos sua proposta em breve.",
+      type: 'text'
+    };
+  }
+
+  // Estado: contato duplicado
   if (currentState === 'contato_duplicado') {
-    console.log("Mensagem recebida, estado atribuido: contato_duplicado");
+    console.log("Estado atribuido: contato_duplicado");
     return;
   }
 }
 
-export async function getMessageAndRedirect(msg: Message, client: Client) {
-  const number = msg.from;
+async function sendResponseToWhatsApp(callbackUrl: string, response: {
+  to: string;
+  message: string;
+  type: string;
+  messageId: string;
+}) {
+  try {
+    await fetch(callbackUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(response)
+    });
+  } catch (error) {
+    console.error('Erro ao enviar resposta para WhatsApp:', error);
+  }
+}
 
+export async function processIncomingMessage(
+  from: string,
+  body: string,
+  name: string,
+  messageId: string,
+  callbackUrl: string
+) {
   let contactData: IClientContact | null = null;
   try {
-    const response = await fetch(`${API_BASE_URL}/api/contacts?phone=${number}`);
+    const response = await fetch(`${API_BASE_URL}/api/contacts?phone=${from}`);
     contactData = await response.json();
   } catch (err) {
     console.error("Erro ao buscar contato:", err);
     return;
   }
 
-  if(contactData?.block) {
+  if (contactData?.block) {
     console.log("Contato bloqueado, ignorando mensagem.");
     return;
   }
@@ -294,13 +257,26 @@ export async function getMessageAndRedirect(msg: Message, client: Client) {
   let currentState: string | null = null;
   if (!contactData || !contactData.phone) {
     currentState = null;
+    console.log("Estado recebido: primeiro_contato");
   } else if (!contactData.service && !contactData.form) {
     currentState = 'aguardando_opcao';
+    console.log("Estado recebido: aguardando_opcao");
   } else if (contactData.service && !contactData.form) {
     currentState = 'aguardando_formulario';
+    console.log("Estado recebido: aguardando_formulario");
   } else {
     currentState = 'contato_duplicado';
+    console.log("Estado recebido: contato_duplicado");
   }
 
-  handleIncomingMessage(msg, client, currentState, contactData);
+  // Processa a mensagem e gera resposta
+  const processedResponse = await processMessageAndGenerateResponse(from, body, name, currentState, contactData);
+
+  // Envia resposta de volta para o whatsapp-server
+  if (processedResponse) {
+    await sendResponseToWhatsApp(callbackUrl, {
+      ...processedResponse,
+      messageId,
+    });
+  }
 }

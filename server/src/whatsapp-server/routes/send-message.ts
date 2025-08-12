@@ -17,7 +17,7 @@ router.post('/', async (req, res) => {
       return res.json({ message: 'Cliente não está conectado...' });
     }
 
-    await client.sendMessage(`${to}@c.us`, message);
+    await client.sendMessage(`${to.includes('@') ? to : `${to}`}@c.us`, message);
 
     return res.json({ message: 'Mensagem enviada com sucesso' });
   } catch (err) {

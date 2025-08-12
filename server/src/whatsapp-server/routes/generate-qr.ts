@@ -3,7 +3,7 @@ import { initWhatsApp } from '../whatsapp';
 
 const router = express.Router();
 
-router.post('/', async (req, res) => {
+router.post('/', async (_, res) => {
   try {
     await initWhatsApp(); // sem socketServer, usa o global já inicializado
     res.json({ message: 'Gerando novo QR Code...' });
