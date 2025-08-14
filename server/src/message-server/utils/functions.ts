@@ -237,6 +237,7 @@ export async function processIncomingMessage(
   from: string,
   body: string,
   name: string,
+  type: string,
   messageId: string,
   callbackUrl: string
 ) {
@@ -269,8 +270,25 @@ export async function processIncomingMessage(
     console.log("Estado recebido: contato_duplicado");
   }
 
-  // Processa a mensagem e gera resposta
-  const processedResponse = await processMessageAndGenerateResponse(from, body, name, currentState, contactData);
+  let processedResponse: {
+    to: string;
+    message: string;
+    type: string;
+  } | null = null;
+
+  // ✅ Verifica se a mensagem é do tipo suportado
+  if (type !== 'chat') {  
+    console.log(`📵 Mensagem não suportada recebida de ${from}: ${type}`);
+    processedResponse = {
+      to: from,
+      message: 'Desculpe, não consigo processar este tipo de mensagem. Por favor, envie apenas mensagens de texto.',
+      type: 'text',
+    };
+  } else {
+    // Processa a mensagem e gera resposta
+    processedResponse = await processMessageAndGenerateResponse(from, body, name, currentState, contactData);
+  }
+
 
   // Envia resposta de volta para o whatsapp-server
   if (processedResponse) {

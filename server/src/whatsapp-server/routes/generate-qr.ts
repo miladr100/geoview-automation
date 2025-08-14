@@ -1,10 +1,11 @@
 import express from 'express';
-import { initWhatsApp } from '../whatsapp';
+import { initWhatsApp, resetRetryCount } from '../whatsapp';
 
 const router = express.Router();
 
 router.post('/', async (_, res) => {
   try {
+    resetRetryCount();
     await initWhatsApp(); // sem socketServer, usa o global já inicializado
     res.json({ message: 'Gerando novo QR Code...' });
   } catch (error) {

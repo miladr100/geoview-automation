@@ -1,8 +1,8 @@
 import mongoose from 'mongoose';
-import { MONGO_URL, SESSION_ID } from '../../env';
+import { MONGO_URL } from '../../env';
 import {
-  deleteRemoteAuthSession,
   deleteLocalAuthSession,
+  cleanupOldSessions,
 } from './functions';
 
 export async function connectMongo() {
@@ -13,7 +13,6 @@ export async function connectMongo() {
   await mongoose.connect(MONGO_URL);
   console.log('✅ Conectado ao MongoDB');
   deleteLocalAuthSession();
-  await deleteRemoteAuthSession(SESSION_ID)
-    .then(() => console.log('✅ Sessão remota deletada com sucesso'))
-    .catch(err => console.error('❌ Erro ao deletar sessão remota:', err));
+  await cleanupOldSessions()
+    .catch(err => console.error('❌ Erro ao deletar sessões antigas:', err));
 }

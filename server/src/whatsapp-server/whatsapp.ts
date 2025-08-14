@@ -7,10 +7,13 @@ import qrcodeTerminal from 'qrcode-terminal';
 import { Server } from 'socket.io';
 import { MongoStore } from 'wwebjs-mongo';
 import {
-  deleteRemoteAuthSession,
   destroyLocalClient,
+  deleteLocalAuthSession,
+  handleProcessMessage,
+  generateUniqueClientId,
+  deleteRemoteAuthSessionByClientId,
 } from './functions';
-import { MESSAGE_PORT, WHATSAPP_PORT, SESSION_ID, MONGO_URL, ENVIRONMENT } from '../../env';
+import { SESSION_ID, MONGO_URL, ENVIRONMENT } from '../../env';
 
 declare global {
   var _whatsappClient: Client | undefined;
@@ -22,6 +25,15 @@ let client: Client | undefined = global._whatsappClient;
 
 let lastQrCode: string | null = null;
 let isInitializing = false;
+let retryCount = 0;
+let currentClientId: string | null = null;
+const MAX_RETRIES = 5;
+const BASE_DELAY = 5000; // 5 segundos
+
+// Função para obter o ID do cliente atual
+export function getCurrentClientId(): string | null {
+  return currentClientId;
+}
 
 export async function initWhatsApp(socketServer?: Server) {
   if (isInitializing || client?.info) {
@@ -38,6 +50,10 @@ export async function initWhatsApp(socketServer?: Server) {
 
   try {
     const mongoStore = new MongoStore({ mongoose });
+    
+    // Gera novo ID único para esta sessão
+    currentClientId = generateUniqueClientId();
+    console.log(`🆔 ID único da sessão: ${currentClientId}`);
 
     client = client ? client : new Client({
       puppeteer: {
@@ -49,13 +65,22 @@ export async function initWhatsApp(socketServer?: Server) {
           '--disable-gpu',
           '--single-process',
           '--no-zygote',
+          '--disable-extensions',
+          '--disable-plugins',
+          '--disable-images',
+          '--disable-javascript',
+          '--no-first-run',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
         ],
         executablePath: ENVIRONMENT === "dev" ? puppeteer.executablePath() : "/usr/bin/chromium-browser",
       },
       authStrategy: new RemoteAuth({
-        clientId: SESSION_ID,
+        clientId: currentClientId, // Usa o ID único gerado
         store: mongoStore,
         backupSyncIntervalMs: 300000,
+        rmMaxRetries: 3,
       }),
     });
 
@@ -64,22 +89,52 @@ export async function initWhatsApp(socketServer?: Server) {
     setupClientEvents(client, io!);
 
     await client.initialize();
-    console.log("✅ Cliente WhatsApp inicializado com sucesso...");
+    console.log(`✅ Cliente WhatsApp inicializado com sucesso... (ID: ${currentClientId})`);
+    
+    // Reset retry count on success
+    retryCount = 0;
+    isInitializing = false;
   } catch (err) {
     console.error("❌ Erro ao inicializar WhatsApp:", err);
-    console.log("🗑️ Tentando deletar sessão e reiniciar cliente...");
-    await destroyLocalClient()
-      .then(() => console.log('✅ Cliente local destruído com sucesso'))
-      .catch(err => console.error('❌ Erro ao destruir cliente local:', err));
-    await deleteRemoteAuthSession(SESSION_ID)
-      .then(() => console.log('✅ Sessão remota deletada com sucesso'))
-      .catch(err => console.error('❌ Erro ao deletar sessão remota:', err));
+    
+    // Check if we've exceeded max retries
+    if (retryCount >= MAX_RETRIES) {
+      console.error(`🛑 Máximo de tentativas (${MAX_RETRIES}) atingido. Parando tentativas de reconexão.`);
+      isInitializing = false;
+      retryCount = 0;
+      currentClientId = null; // Reset client ID
+      return;
+    }
+    
+    retryCount++;
+    console.log(`🗑️ Tentativa ${retryCount}/${MAX_RETRIES}: Deletando sessão e reiniciando cliente...`);
+    
+    try {
+      await destroyLocalClient()
+        .then(() => console.log('✅ Cliente local destruído com sucesso'))
+        .catch(err => console.error('❌ Erro ao destruir cliente local:', err));
+      
+      // Deleta a sessão específica que falhou
+      if (currentClientId) {
+        await deleteRemoteAuthSessionByClientId(currentClientId)
+          .then(() => console.log(`✅ Sessão ${currentClientId} deletada com sucesso`))
+          .catch(err => console.error('❌ Erro ao deletar sessão remota:', err));
+      }
+    } catch (cleanupErr) {
+      console.error('❌ Erro durante limpeza:', cleanupErr);
+    }
 
-    // Aguarda um pouco e tenta de novo
+    // Calculate exponential backoff delay
+    const delay = BASE_DELAY * Math.pow(2, retryCount - 1);
+    console.log(`⏰ Próxima tentativa em ${delay / 1000} segundos...`);
+    
+    // Schedule next attempt with exponential backoff
     setTimeout(() => {
-      console.log('🔄 Reiniciando cliente...');
+      console.log(`🔄 Tentativa ${retryCount}/${MAX_RETRIES} de reconexão...`);
+      isInitializing = false; // Reset flag to allow retry
+      currentClientId = null; // Reset client ID for new attempt
       initWhatsApp(io);
-    }, 5000);
+    }, delay);
   }
 }
 
@@ -95,6 +150,13 @@ function setupClientEvents(client: Client, ioSock: Server) {
 
   client.on('error', err => {
     console.error('❗ Erro no cliente WhatsApp:', err);
+
+    // Adicionar verificação específica para erros de arquivo
+    if (err.code === 'ENOENT') {
+      console.log('��️ Arquivo de sessão não encontrado, limpando sessão...');
+      // Limpar sessão corrompida
+      deleteLocalAuthSession();
+    }
   });
 
   // Event listeners for the WhatsApp client
@@ -124,35 +186,7 @@ function setupClientEvents(client: Client, ioSock: Server) {
   });
 
   client.on('message', async (msg) => {
-    // ✅ Ignora mensagens que não sejam de contatos diretos (ex: grupos, status, broadcast)
-    if (!msg.from.endsWith('@c.us')) {
-      console.log(`📵 Mensagem ignorada de ${msg.from}: ${msg.body}`);
-      return;
-    }
-    console.log(`📩 Mensagem recebida de ${msg.from}: ${msg.body}`);
-    const contact = await msg.getContact();
-    const name = contact?.pushname || contact?.name || 'Desconhecido';
-    // Envia mensagem para o message-server processar
-    try {
-      const response = await fetch(`http://localhost:${MESSAGE_PORT}/api/process-message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from: msg.from,
-          body: msg.body,
-          name,
-          messageId: msg.id._serialized,
-          // Adiciona callback URL para resposta
-          callbackUrl: `http://localhost:${WHATSAPP_PORT}/api/send-response`
-        })
-      });
-
-      if (!response.ok) {
-        console.error('❌ Erro ao processar mensagem no message-server');
-      }
-    } catch (error) {
-      console.error('❌ Erro ao enviar mensagem para processamento:', error);
-    }
+    await handleProcessMessage(msg, client);
   });
 }
 
@@ -170,7 +204,27 @@ export function deleteClient() {
   }
   global._whatsappClient = undefined;
   isInitializing = false;
+  retryCount = 0; // Reset retry count when deleting client
+  currentClientId = null; // Reset current client ID
   client = undefined;
+}
+
+// Função para resetar manualmente o contador de tentativas
+export function resetRetryCount() {
+  retryCount = 0;
+  console.log('🔄 Contador de tentativas resetado.');
+}
+
+// Função para verificar o status atual das tentativas
+export function getRetryStatus() {
+  return {
+    retryCount,
+    maxRetries: MAX_RETRIES,
+    isInitializing,
+    hasClient: !!client?.info,
+    currentClientId,
+    sessionId: SESSION_ID
+  };
 }
 
 export { client };

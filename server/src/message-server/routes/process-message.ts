@@ -5,14 +5,14 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
-    const { from, body, name, messageId, callbackUrl } = req.body;
+    const { from, body, name, messageId, callbackUrl, type } = req.body;
 
     if (!from || !body || !name || !callbackUrl || !messageId) {
       return res.status(400).json({ error: 'Dados obrigatórios: from, body, name, callbackUrl, messageId' });
     }
     console.log("Mensagem recebida para processamento: ", from);
     // Processa a mensagem de forma assíncrona
-    processIncomingMessage(from, body, name, messageId, callbackUrl);
+    processIncomingMessage(from, body, name, type, messageId, callbackUrl);
 
     // Responde imediatamente para não bloquear o WhatsApp
     return res.json({ 
