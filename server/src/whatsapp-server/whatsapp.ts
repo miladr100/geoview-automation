@@ -93,7 +93,6 @@ export async function initWhatsApp(socketServer?: Server) {
     
     // Reset retry count on success
     retryCount = 0;
-    isInitializing = false;
   } catch (err) {
     console.error("❌ Erro ao inicializar WhatsApp:", err);
     
